@@ -21,8 +21,12 @@ Everything runs on your own computer. There are no subscriptions, watermarks or 
 ### Windows (tested)
 1. Install [Python 3.13](https://www.python.org/downloads/). Python 3.14+ is too new for some of the libraries.
 2. Download this repo (green **Code** button → *Download ZIP*, then extract it) or `git clone` it.
-3. Double-click **`setup.bat`**. It installs everything, including ffmpeg and Node.js via winget if they're missing.
-4. Double-click **`start.bat`**. Your browser opens at http://127.0.0.1:8765
+3. Double-click **`setup.bat`**. It installs everything (including ffmpeg and Node.js via winget if they're missing)
+   and puts a **ClipForge icon on your Desktop**.
+4. Double-click the **ClipForge** icon. Your browser opens at http://127.0.0.1:8765. A small window
+   appears on the taskbar; keep it open while you use the app, and close it to stop ClipForge.
+
+Moved the folder? Run **`create-shortcut.bat`** again to fix the icon.
 
 ### macOS / Linux (untested)
 ```bash

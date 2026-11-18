@@ -1,4 +1,5 @@
 @echo off
+title ClipForge (phone mode) - keep this window open
 rem Same as start.bat, but phones/tablets/other PCs on the same Wi-Fi can use it too.
 cd /d "%~dp0"
 if not exist ".venv\Scripts\python.exe" (

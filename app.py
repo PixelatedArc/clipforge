@@ -192,7 +192,20 @@ def _lan_ip():
         s.close()
 
 
+def _already_running():
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(0.5)
+    try:
+        return s.connect_ex(("127.0.0.1", PORT)) == 0
+    finally:
+        s.close()
+
+
 def main():
+    if _already_running():
+        print("ClipForge is already running - opening it in your browser.")
+        webbrowser.open("http://127.0.0.1:%d" % PORT)
+        sys.exit(0)
     h = config.health()
     print("ClipForge")
     for k, v in h.items():

@@ -39,8 +39,10 @@ if errorlevel 1 (
   winget install -e --id OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements
 )
 
+call create-shortcut.bat
+
 echo.
-echo Setup complete. Double-click start.bat to run ClipForge.
+echo Setup complete. Double-click the ClipForge icon on your Desktop to start.
 pause
 exit /b 0
 

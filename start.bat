@@ -1,4 +1,5 @@
 @echo off
+title ClipForge - keep this window open while using the app
 cd /d "%~dp0"
 if not exist ".venv\Scripts\python.exe" (
   echo First run - running setup...
