@@ -1,0 +1,19 @@
+# Rebuilt by setup on every machine
+.venv/
+__pycache__/
+*.pyc
+
+# Downloaded automatically on first use (~150 MB)
+models/
+
+# Your projects and exported videos - never commit these
+workspace/
+output/
+tools/
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.playwright-mcp/

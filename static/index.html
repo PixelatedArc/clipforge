@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ClipForge</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23ffcc00'/%3E%3Ctext x='50' y='70' font-size='60' text-anchor='middle'%3E%E2%9C%82%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <div class="brand"><span class="logo">&#9986;</span> ClipForge <small>free local clipper</small></div>
+  <div id="health" class="health">checking tools…</div>
+</header>
+
+<main>
+  <aside>
+    <section class="card">
+      <h2>New project</h2>
+      <form id="newForm">
+        <label>YouTube link
+          <input name="url" id="url" type="url" placeholder="https://www.youtube.com/watch?v=…">
+        </label>
+        <label class="file">Video file <span class="muted">(optional - use if you already downloaded it)</span>
+          <input name="file" id="file" type="file" accept="video/*">
+        </label>
+        <details>
+          <summary>Settings</summary>
+          <label>Clip length: <b id="lenVal">40</b>s
+            <input name="clip_len" type="range" min="15" max="90" step="5" value="40"
+                   oninput="lenVal.textContent=this.value">
+          </label>
+          <label>How many clips: <b id="numVal">20</b>
+            <input name="num_clips" type="range" min="3" max="40" value="20"
+                   oninput="numVal.textContent=this.value">
+          </label>
+          <label>Download quality
+            <select name="max_height"><option value="1080">1080p</option><option value="720">720p (faster)</option></select>
+          </label>
+          <label>Spoken language
+            <select name="spoken_lang" id="spokenLang"><option value="">Auto-detect</option></select>
+          </label>
+          <label>Use YouTube login from browser <span class="muted">(only if downloads fail)</span>
+            <select name="cookies_browser">
+              <option value="">None</option><option value="firefox">Firefox</option>
+              <option value="chrome">Chrome (close it first)</option><option value="edge">Edge (close it first)</option>
+              <option value="brave">Brave</option>
+            </select>
+          </label>
+          <label class="check"><input type="checkbox" name="full_whisper" value="1">
+            Transcribe whole video if it has no captions <span class="muted">(slow on CPU)</span></label>
+        </details>
+        <button class="primary" type="submit" id="goBtn">Find clips</button>
+        <p id="formErr" class="err"></p>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Recent</h2>
+      <ul id="recent" class="recent"><li class="muted">Nothing yet</li></ul>
+    </section>
+  </aside>
+
+  <section id="view" class="view">
+    <div class="empty">
+      <h1>Paste a link, get reels.</h1>
+      <p>ClipForge finds the best moments using YouTube's <b>Most replayed</b> graph, <b>timestamp comments</b>,
+        and <b>loud reactions</b>, then exports vertical clips with captions, translation and AI dub.
+        Everything runs on this PC.</p>
+    </div>
+  </section>
+</main>
+
+<template id="projTpl">
+  <div class="proj">
+    <div class="proj-head">
+      <div>
+        <h1 class="title"></h1>
+        <div class="sub muted"></div>
+      </div>
+    </div>
+    <div class="warns"></div>
+    <div class="status card">
+      <div class="stage"></div>
+      <div class="bar"><div></div></div>
+      <p class="err perr"></p>
+      <details class="logbox"><summary>Log</summary><pre class="log"></pre></details>
+    </div>
+    <div class="ready hidden">
+      <div class="player card">
+        <video id="player" controls preload="metadata"></video>
+        <canvas id="curve" height="70" title="Hype graph - click to jump"></canvas>
+        <div class="legend muted">Hype graph of the whole video &middot; highlighted = picked clips &middot; click to jump</div>
+      </div>
+      <div class="toolbar">
+        <label class="check"><input type="checkbox" id="selAll"> Select all</label>
+        <span class="muted" id="selCount"></span>
+      </div>
+      <div class="clips"></div>
+    </div>
+  </div>
+</template>
+
+<template id="exportTpl">
+  <div class="export card">
+    <h2>Export</h2>
+    <div class="grid">
+      <label>Layout
+        <select id="layout"><option value="blur">Blurred background</option><option value="center">Center crop (fills screen)</option></select>
+      </label>
+      <label>Captions
+        <select id="captions">
+          <option value="original">Original language (word highlight)</option>
+          <option value="translated">Translated</option>
+          <option value="off">Off</option>
+        </select>
+      </label>
+      <label id="capLangWrap" class="hidden">Caption language
+        <select id="capLang"></select>
+      </label>
+      <label>AI dub (voice-over)
+        <select id="dubLang"><option value="">Off - keep original voice</option></select>
+      </label>
+      <label id="voiceWrap" class="hidden">Voice
+        <select id="voice"></select>
+      </label>
+      <label id="volWrap" class="hidden">Original audio under dub: <b id="volVal">15</b>%
+        <input id="vol" type="range" min="0" max="60" value="15" oninput="volVal.textContent=this.value">
+      </label>
+    </div>
+    <details class="adv"><summary>Translation limit</summary>
+      <p class="muted">Translation uses Google first, then MyMemory if Google is blocked. MyMemory is free for
+        ~5,000 characters/day; entering an email raises that to ~50,000. The email is sent to MyMemory only.</p>
+      <input id="mmEmail" type="email" placeholder="you@example.com (optional)">
+    </details>
+    <p class="muted dubnote hidden">Dub uses a natural AI voice (not a clone of the speaker). Captions follow the dub language.</p>
+    <button class="primary" id="exportBtn">Export selected</button>
+    <p class="err" id="exportErr"></p>
+    <div class="results"></div>
+    <button id="openFolder" class="ghost hidden">Open output folder</button>
+  </div>
+</template>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
