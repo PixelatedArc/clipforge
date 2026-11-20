@@ -26,7 +26,44 @@ h1 { font-size: 20px; margin: 0 0 4px; } h2 { font-size: 14px; margin: 0 0 10px;
   letter-spacing: .6px; color: var(--muted); }
 label { display: block; margin: 0 0 10px; font-size: 13px; }
 label.check { display: flex; gap: 8px; align-items: center; }
-input[type=url], input[type=email], input[type=number], select, input[type=file] {
+.file { font-size: 13px; margin: 0 0 10px; }
+.localpick { display: flex; flex-direction: column; gap: 6px; }
+.localpick button.ghost { margin-top: 6px; }
+.small { font-size: 11px; }
+.jobctl { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+.jobctl:empty { display: none; }
+.jobctl button.ghost { width: auto; margin: 0; }
+.bar.paused div { background: var(--muted); transition: none; }
+h3 { font-size: 12px; margin: 14px 0 6px; text-transform: uppercase; letter-spacing: .5px; color: var(--accent); }
+summary.h2sum { font-size: 14px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); font-weight: 700; margin: 0; }
+details[open] > summary.h2sum { margin-bottom: 10px; }
+.row2 { display: flex; gap: 8px; align-items: center; }
+.row2 > select, .row2 > input { flex: 1; min-width: 0; }
+.row2 > button { width: auto; margin-top: 0; white-space: nowrap; }
+.row2 > button.primary { flex: 1; }
+.chipbtn { font-size: 12px; padding: 5px 8px; border-radius: 999px; }
+.preset { flex-wrap: wrap; margin-bottom: 4px; }
+.vwrap { position: relative; }
+.facebox { position: absolute; border: 2px solid var(--accent); background: rgba(255,204,0,.15); pointer-events: none; }
+.facebox::after { content: "facecam"; position: absolute; top: -18px; left: -2px; font-size: 11px; background: var(--accent); color: #111; padding: 0 4px; border-radius: 3px; }
+.drawlayer { position: absolute; inset: 0; cursor: crosshair; background: rgba(0,0,0,.25); touch-action: none; }
+.drawlayer::before { content: "Drag a box over the streamer's camera"; position: absolute; top: 8px; left: 50%; transform: translateX(-50%); background: #000c; padding: 4px 10px; border-radius: 6px; font-size: 13px; }
+.framegrid { display: grid; grid-template-columns: minmax(0, 1fr) 190px; gap: 16px; align-items: start; }
+@media (max-width: 600px) { .framegrid { grid-template-columns: minmax(0, 1fr); } }
+.phone { width: 190px; aspect-ratio: 9 / 16; border: 3px solid #333; border-radius: 18px; background: #000; overflow: hidden;
+  display: flex; align-items: center; justify-content: center; text-align: center; padding: 0; position: relative; }
+.phone img { width: 100%; height: 100%; object-fit: contain; display: none; }
+.phone img.on { display: block; }
+.phone img.on + span { display: none; }
+.clip .extra { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; margin-top: 8px; }
+.clip .extra input, .clip .extra select, .txt { width: 100%; padding: 6px 8px; background: var(--panel2); color: var(--text);
+  border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 12px; margin-top: 4px; }
+.clip .extra select { width: auto; }
+.kit { margin: 6px 0 12px; border-top: 1px solid var(--line); padding-top: 8px; }
+.kit .kh { display: flex; justify-content: space-between; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); margin-top: 6px; }
+.kit pre { white-space: pre-wrap; background: var(--panel2); border-radius: 8px; padding: 8px; margin: 4px 0 0; font-family: inherit; font-size: 12px; line-height: 1.45; max-height: 160px; overflow: auto; }
+.kit button { font-size: 11px; padding: 2px 8px; }
+input[type=url], input[type=email], input[type=number], select, input[type=file], #localPath {
   width: 100%; margin-top: 4px; padding: 8px 10px; background: var(--panel2); color: var(--text);
   border: 1px solid var(--line); border-radius: 8px; font: inherit; }
 input[type=range] { width: 100%; accent-color: var(--accent); }

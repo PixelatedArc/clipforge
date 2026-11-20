@@ -9,7 +9,8 @@ import uuid
 
 import numpy as np
 
-from . import config, render, signals, transcript, youtube
+from . import config, control, publish, render, signals, transcript, youtube
+from . import settings as user_settings
 
 _projects = {}
 _lock = threading.RLock()
@@ -39,8 +40,13 @@ def get(pid):
             with open(path, encoding="utf-8") as f:
                 p = json.load(f)
             if p.get("status") in ("queued", "running"):
-                p["status"] = "error"
-                p["error"] = "The app was closed while this was running. Start it again."
+                p["status"] = "stopped"
+                p["stage"] = "The app was closed while this was running."
+            if p.get("render_status") in ("queued", "running"):
+                p["render_status"] = "stopped"
+                for r in (p.get("renders") or {}).values():
+                    if r.get("status") in ("queued", "running"):
+                        r["status"] = "stopped"
             _projects[pid] = p
             return p
     return None
@@ -76,6 +82,7 @@ def _mmss(s):
 
 
 def _stage(p, stage, progress=None):
+    control.checkpoint()
     with _lock:
         p["stage"] = stage
         if progress is not None:
@@ -84,18 +91,42 @@ def _stage(p, stage, progress=None):
 
 
 # ---------------------------------------------------------------- jobs
+def _mark_stopped(p, fn):
+    with _lock:
+        if fn is _analyze:
+            p["status"] = "stopped"
+            p["stage"] = "Stopped."
+        else:
+            p["render_status"] = "stopped"
+            for r in p["renders"].values():
+                if r.get("status") in ("queued", "running"):
+                    r["status"] = "stopped"
+    _log(p, "Stopped by you.")
+
+
 def _worker():
     while True:
         fn, p, args = _q.get()
         try:
+            if control.take_stopped(p["id"]):
+                _mark_stopped(p, fn)
+                continue
+            control.begin(p["id"])
             fn(p, *args)
+        except control.Cancelled:
+            _mark_stopped(p, fn)
         except Exception as e:  # surface every failure to the UI
+            if control.cancelled():  # a killed process can surface as an ordinary error
+                _mark_stopped(p, fn)
+                continue
             with _lock:
                 p["status"] = "error"
                 p["error"] = str(e)
             _log(p, "ERROR: " + str(e))
             _log(p, traceback.format_exc()[-1500:])
         finally:
+            control.end()
+            p.pop("_words", None)
             save(p)
             _q.task_done()
 
@@ -103,7 +134,7 @@ def _worker():
 threading.Thread(target=_worker, daemon=True).start()
 
 
-def create_project(url=None, upload_path=None, settings=None):
+def create_project(url=None, upload_path=None, settings=None, local_path=None):
     pid = time.strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:4]
     d = os.path.join(config.WORKSPACE, pid)
     os.makedirs(d, exist_ok=True)
@@ -112,6 +143,9 @@ def create_project(url=None, upload_path=None, settings=None):
          "settings": settings or {}, "source": None, "renders": {}}
     if upload_path:
         p["upload_name"] = os.path.basename(upload_path)
+    if local_path:  # a file already on this PC: used where it is, never copied
+        p["local_path"] = local_path
+        p["title"] = None if url else os.path.splitext(os.path.basename(local_path))[0]
     with _lock:
         _projects[pid] = p
     save(p)
@@ -119,7 +153,14 @@ def create_project(url=None, upload_path=None, settings=None):
 
 
 def start_analyze(p):
+    with _lock:
+        p.update(status="queued", stage="Waiting...", progress=0, error=None)
+    save(p)
     _q.put((_analyze, p, ()))
+
+
+def busy(p):
+    return p.get("status") in ("queued", "running") or p.get("render_status") in ("queued", "running")
 
 
 def start_render(p, clip_ids, opts):
@@ -144,6 +185,7 @@ def _analyze(p):
                                       max_comments=int(s.get("max_comments", 400)), cookies_browser=cookies)
         p["title"] = meta["title"]
         p["duration"] = meta["duration"]
+        p["channel"] = meta.get("channel")
         _log(p, "Found: heatmap points=%d, comments=%d, caption tracks=%d manual / %d auto" % (
             len(meta["heatmap"]), len(meta["comments"]), len(meta["subtitles"]), len(meta["auto_captions"])))
         with open(os.path.join(p["dir"], "meta.json"), "w", encoding="utf-8") as f:
@@ -152,9 +194,17 @@ def _analyze(p):
 
     # ---- source video
     upload = os.path.join(p["dir"], p["upload_name"]) if p.get("upload_name") else None
-    if upload and os.path.exists(upload):
+    if p.get("local_path"):
+        if not os.path.isfile(p["local_path"]):
+            raise RuntimeError("Can't find the video file anymore: %s\nWas it moved, renamed or deleted?"
+                               % p["local_path"])
+        p["source"] = p["local_path"]
+        _log(p, "Using your file where it is (no copy): " + p["local_path"])
+    elif upload and os.path.exists(upload):
         p["source"] = upload
         _log(p, "Using your uploaded file.")
+    elif p.get("source") and os.path.isfile(p["source"]):
+        _log(p, "Reusing the video downloaded earlier.")
     elif p.get("url"):
         _stage(p, "Downloading video (up to %sp)..." % s.get("max_height", 1080), 0.08)
         try:
@@ -163,6 +213,8 @@ def _analyze(p):
                 lambda f: p.update(progress=round(0.08 + 0.5 * f, 3)),
                 max_height=int(s.get("max_height", 1080)), cookies_browser=cookies)
         except Exception as e:
+            if control.cancelled() or isinstance(e, control.Cancelled):
+                raise control.Cancelled()
             raise RuntimeError(
                 "Could not download the video: %s\n\nFixes: (1) try again on a home network - some office/"
                 "school networks block YouTube video streams; (2) in Settings pick the browser you're logged "
@@ -182,6 +234,9 @@ def _analyze(p):
         _log(p, "Warning: video has no audio track - loudness, captions and dub won't work.")
     p["warnings"] = []
     vh = max([st.get("height") or 0 for st in info.get("streams", []) if st.get("codec_type") == "video"] or [0])
+    vw = max([st.get("width") or 0 for st in info.get("streams", []) if st.get("codec_type") == "video"] or [0])
+    p["info"] = {"w": vw or 1920, "h": vh or 1080,
+                 "audio": any(st.get("codec_type") == "audio" for st in info.get("streams", []))}
     if 0 < vh < 720:
         p["warnings"].append(
             "Source is only %dp - reels will look soft. YouTube gave a low-quality stream (often a "
@@ -232,6 +287,7 @@ def _analyze(p):
     _stage(p, "Picking the best moments...", 0.9)
     phr = transcript.phrases(words) if words else None
     clips = signals.pick_clips(score, int(s.get("num_clips", 20)), int(s.get("clip_len", 40)), dur, phr)
+    control.checkpoint()
     for i, c in enumerate(clips):
         c["id"] = i + 1
         c["reasons"], c["top_comments"] = signals.explain(c, sig, hits, used)
@@ -244,30 +300,65 @@ def _analyze(p):
 
 
 # ---------------------------------------------------------------- render
+def _write_kit_index(p):
+    """One file with every reel's upload text, in score order - handy for batch uploading."""
+    done = [(cid, r) for cid, r in p["renders"].items() if r.get("status") == "done" and r.get("kit")]
+    done.sort(key=lambda x: int(x[0]))
+    txt = "\n\n" + ("-" * 60 + "\n\n").join(publish.kit_text(r["file"], r["kit"]) for _, r in done)
+    with open(os.path.join(p["output_dir"], "UPLOAD_KIT.txt"), "w", encoding="utf-8") as f:
+        f.write("ClipForge upload kit - %s\n" % (p.get("title") or "") + txt)
+
+
 def _render(p, clip_ids, opts):
     p["render_status"] = "running"
     p["_words"] = words_of(p)
-    proj = {"source": p["source"], "words": p["_words"], "source_lang": p.get("source_lang"), "dir": p["dir"]}
+    if not p.get("info"):
+        p["info"] = render.probe(p["source"])
+    us = user_settings.load()
+    ctx = {k: us.get(k) for k in ("game", "streamer", "streamer_url", "my_handle", "show_handle", "show_credit",
+                                  "extra_hashtags")}
+    ctx["channel"] = p.get("channel")
+    ctx["streamer"] = us.get("streamer") or p.get("channel") or ""
+    ctx["ai_on"] = bool(user_settings.ai_endpoint(us))
+    proj = {"source": p["source"], "words": p["_words"], "source_lang": p.get("source_lang"), "dir": p["dir"],
+            "info": p["info"], "crop": p.get("crop"), "ctx": ctx}
     out_dir = os.path.join(config.OUTPUT, render.safe_name(p.get("title") or p["id"]))
     os.makedirs(out_dir, exist_ok=True)
     p["output_dir"] = out_dir
     by_id = {c["id"]: c for c in p["clips"]}
+    hooks = opts.get("hooks") or {}
     for k, cid in enumerate(clip_ids):
         c = by_id[int(cid)]
         r = p["renders"][str(cid)]
         r.update(status="running", started=time.time())
         _log(p, "Rendering clip %d (%d/%d)..." % (cid, k + 1, len(clip_ids)))
-        suffix = ""
+        suffix = "" if (opts.get("format") or "9:16") == "9:16" else "_" + opts["format"].replace(":", "x")
         if opts.get("dub_lang"):
-            suffix = "_dub-" + opts["dub_lang"]
+            suffix += "_dub-" + opts["dub_lang"]
         elif opts.get("captions") == "translated":
-            suffix = "_sub-" + (opts.get("caption_lang") or "")
+            suffix += "_sub-" + (opts.get("caption_lang") or "")
         name = "%02d_score%d%s.mp4" % (cid, c["score"], suffix)
+        out_path = os.path.join(out_dir, name)
         try:
-            render.render_clip(proj, c, opts, os.path.join(out_dir, name), lambda m: _log(p, "  " + m))
-            r.update(status="done", file=name, secs=round(time.time() - r["started"], 1))
-            _log(p, "  Saved %s (%.0fs)" % (name, r["secs"]))
+            control.checkpoint()
+            copts = dict(opts, hook_text=hooks.get(str(cid)) or "",
+                         layout=(opts.get("layouts") or {}).get(str(cid)) or opts.get("layout"))
+            res = render.render_clip(proj, c, copts, out_path, lambda m: _log(p, "  " + m))
+            kit = res["kit"]
+            with open(os.path.splitext(out_path)[0] + "_upload.txt", "w", encoding="utf-8") as f:
+                f.write(publish.kit_text(name, kit))
+            r.update(status="done", file=name, secs=round(time.time() - r["started"], 1), kit=kit,
+                     duration=res["duration"])
+            _write_kit_index(p)
+            _log(p, "  Saved %s (%.0fs) + upload kit" % (name, r["secs"]))
         except Exception as e:
+            if isinstance(e, control.Cancelled) or control.cancelled():
+                try:  # don't leave a half-written reel behind
+                    if os.path.exists(out_path):
+                        os.remove(out_path)
+                except OSError:
+                    pass
+                raise control.Cancelled()
             r.update(status="error", error=str(e)[:500])
             _log(p, "  Clip %d failed: %s" % (cid, str(e)[:500]))
         save(p)

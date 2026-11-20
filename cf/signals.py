@@ -11,7 +11,7 @@ import subprocess
 
 import numpy as np
 
-from . import config
+from . import config, control
 
 WEIGHTS = {"heatmap": 0.45, "comments": 0.30, "loudness": 0.20, "speech": 0.05}
 
@@ -57,15 +57,19 @@ def loudness_signal(path, n):
     """RMS loudness per second (dB) minus a rolling 60 s median -> spikes."""
     sr = 4000
     cmd = [config.ffmpeg(), "-v", "error", "-i", path, "-vn", "-ac", "1", "-ar", str(sr), "-f", "s16le", "-"]
-    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, creationflags=config.NO_WINDOW)
+    p = control.popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     rms = []
-    while True:
-        chunk = p.stdout.read(sr * 2)
-        if not chunk:
-            break
-        a = np.frombuffer(chunk, np.int16).astype(np.float32) / 32768.0
-        rms.append(20 * np.log10(np.sqrt(np.mean(a * a)) + 1e-6))
-    p.wait()
+    try:
+        while True:
+            chunk = p.stdout.read(sr * 2)
+            if not chunk:
+                break
+            a = np.frombuffer(chunk, np.int16).astype(np.float32) / 32768.0
+            rms.append(20 * np.log10(np.sqrt(np.mean(a * a)) + 1e-6))
+        p.wait()
+    finally:
+        control.forget(p)
+    control.checkpoint()
     db = np.full(n, -60.0)
     m = min(n, len(rms))
     db[:m] = rms[:m]

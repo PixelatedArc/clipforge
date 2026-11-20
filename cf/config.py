@@ -59,13 +59,11 @@ def node():
 
 
 def run(cmd, cwd=None, check=True):
-    """Run a command, return CompletedProcess; raise with stderr tail on failure."""
-    r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, encoding="utf-8",
-                       errors="replace", creationflags=NO_WINDOW)
-    if check and r.returncode != 0:
-        tail = (r.stderr or "").strip().splitlines()[-12:]
-        raise RuntimeError("Command failed: %s\n%s" % (os.path.basename(cmd[0]), "\n".join(tail)))
-    return r
+    """Run a command, return CompletedProcess; raise with stderr tail on failure.
+
+    Goes through control.run so the Pause / Stop buttons reach it."""
+    from . import control
+    return control.run(cmd, cwd=cwd, check=check)
 
 
 @lru_cache(None)
@@ -89,7 +87,8 @@ def video_encoder():
 def encoder_args(enc):
     if enc == "h264_qsv":
         return ["-c:v", "h264_qsv", "-global_quality", "22", "-look_ahead", "0"]
-    return ["-c:v", "libx264", "-preset", "veryfast", "-crf", "21"]
+    from . import control
+    return ["-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-threads", str(control.THREADS)]
 
 
 def health():

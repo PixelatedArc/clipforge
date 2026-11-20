@@ -10,8 +10,19 @@ Everything runs on your own computer. There are no subscriptions, watermarks or 
 - **Smart clip picking:** each moment is scored by YouTube's *Most replayed* graph, timestamp comments
   (`12:34 bro 😂`), loud reactions in the audio, and hype words in the transcript. Each clip shows *why* it was picked.
 - **Preview and trim** in the browser, with a clickable "hype graph" of the whole video.
-- **Vertical export:** blurred-background or center-crop layout.
-- **Captions:** word-by-word highlighted captions, or subtitles translated into 20 languages.
+- **Reel formats:** 9:16 (Shorts/Reels/TikTok), 4:5 (Instagram feed), 1:1. Layouts: **split screen** (streamer's
+  facecam on top, gameplay below; mark the facecam once with a drag), full screen, zoomed, or whole video on blur.
+  Each clip can use its own layout, and there's a phone-shaped preview.
+- **Editing that holds attention:** a big hook text in the first 2 seconds, an optional flash-forward teaser of the
+  best moment, zoom + flash intro, dead-air removal (jump cuts), zoom punches on hype moments, a progress bar and a
+  "Follow for more" ending (or fade / loop-friendly).
+- **Audio:** loudness matched to platforms (-14 LUFS), whoosh on transitions, optional background music from the
+  `music` folder (automatically lowered under speech).
+- **Captions:** bold animated word-by-word captions. For non-English speech, English captions come straight from the
+  audio (Whisper translate), which works much better for Hinglish than translating text. 20 languages in total.
+- **Upload kit:** for every reel, a ready-to-paste YouTube Shorts title + description, Instagram caption and TikTok
+  caption with hashtags and the streamer credit, saved as `<reel>_upload.txt` and in `UPLOAD_KIT.txt`. Built-in
+  templates work offline; a free Gemini or Groq API key (*Channel & upload kit* panel) lets an AI write clip-specific text.
 - **AI dub:** translates the speech and voices it with free neural voices (e.g. English → Hindi),
   with the original audio kept underneath.
 - **Phone mode:** control it from your phone over Wi-Fi while your PC does the work.
@@ -46,8 +57,19 @@ The key changes on every start, and devices without it are blocked. Use this on 
 not on public networks.
 
 ## Usage
-Paste a link → **Find clips** → tick the clips you want → choose layout, captions and dub → **Export selected**.
-The reels are saved in `output/<video title>/`.
+1. Once: open **Channel & upload kit** (left) and fill in the game, the streamer you credit and your handle.
+2. Paste a link (or choose a file) → **Find clips**.
+3. For streams: pause on a frame with the streamer's camera → **Mark facecam** → drag a box over it.
+   Use **Preview this frame as a reel** to check the framing.
+4. Tick the clips you want (optionally type your own hook text or change a clip's layout) → pick a preset
+   (🔥 Viral / ✨ Clean / ✂ Just the clip) → **Export selected**.
+5. The reels and their upload text are saved in `output/<video title>/`. Use the Copy buttons under each reel.
+
+- **Already downloaded the video?** Click **Choose video on this PC** (or paste its path). ClipForge uses the file
+  where it is, so nothing is copied and it starts instantly. Add the YouTube link too to get Most-replayed and comments.
+- **Need your PC back?** Press **Pause**: the work stops using your CPU and continues where it left off when you press
+  **Resume**. **Stop** cancels it; finished reels are kept, and **Run again** restarts a stopped search.
+- ClipForge runs at low priority and leaves CPU cores free, so other apps stay usable while it works.
 
 ## Good to know
 - **Low quality (360p) warning:** some office/school networks block YouTube's HD streams. Use a home
@@ -56,6 +78,8 @@ The reels are saved in `output/<video title>/`.
 - **Captions:** YouTube's own captions are used when available. Otherwise the local
   [Whisper](https://github.com/SYSTRAN/faster-whisper) model transcribes each clip on the CPU
   (it downloads about 140 MB on first use).
+- **"Transcribe whole video"** is slow on long videos (roughly 20–40 minutes of CPU work for a 2-hour stream).
+  Leave it off unless you need it: captions for each exported clip are made anyway.
 - **Translation:** Google first, then MyMemory. MyMemory's free limit is about 5,000 characters a day; add an email
   under *Export → Translation limit* to raise it to about 50,000.
 - **The dub voice** is natural AI speech ([edge-tts](https://github.com/rany2/edge-tts)), not a clone of the speaker.

@@ -10,7 +10,7 @@ import os
 import edge_tts
 from mutagen.mp3 import MP3
 
-from . import config
+from . import config, control
 
 _voices_cache = None
 
@@ -68,6 +68,7 @@ def build_dub_track(phrases, clip_start, clip_dur, voice, work_dir, log):
         nxt = phrases[i + 1]["t"] - clip_start if i + 1 < len(phrases) else clip_dur
         slot = max(0.4, min(nxt, clip_dur) - t)
         path = os.path.join(work_dir, "tts_%03d.mp3" % i)
+        control.checkpoint()
         try:
             _, tempo = synth_phrase(text, voice, slot, path)
         except Exception as e:

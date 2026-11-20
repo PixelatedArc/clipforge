@@ -4,7 +4,7 @@ import os
 
 import yt_dlp
 
-from . import config
+from . import config, control
 
 
 class _Logger:
@@ -118,6 +118,7 @@ def download_captions(url_json3, log, cookies_browser=None):
 def download_video(url, out_dir, log, progress, max_height=1080, cookies_browser=None):
     """Download best video <= max_height (H.264 preferred: fast to cut, previews in any browser)."""
     def hook(d):
+        control.checkpoint()   # Pause holds the download here; Stop aborts it
         if d.get("status") == "downloading":
             total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
             if total:

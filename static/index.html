@@ -21,9 +21,14 @@
         <label>YouTube link
           <input name="url" id="url" type="url" placeholder="https://www.youtube.com/watch?v=…">
         </label>
-        <label class="file">Video file <span class="muted">(optional - use if you already downloaded it)</span>
-          <input name="file" id="file" type="file" accept="video/*">
-        </label>
+        <div class="file">Video file <span class="muted">(optional - use if you already downloaded it)</span>
+          <div id="localPick" class="localpick hidden">
+            <button type="button" id="pickBtn" class="ghost">📁 Choose video on this PC</button>
+            <input name="local_path" id="localPath" placeholder="…or paste the file path here">
+            <span class="muted small">Used where it is - no copying, starts instantly.</span>
+          </div>
+          <input name="file" id="file" type="file" accept="video/*" class="hidden">
+        </div>
         <details>
           <summary>Settings</summary>
           <label>Clip length: <b id="lenVal">40</b>s
@@ -56,6 +61,31 @@
     </section>
 
     <section class="card">
+      <details id="chanBox">
+        <summary class="h2sum">Channel &amp; upload kit</summary>
+        <p class="muted">Used for the on-video handle/credit and the ready-to-paste titles, captions and hashtags.</p>
+        <label>Game <input id="sGame" class="txt" placeholder="GTA 6"></label>
+        <label>Streamer you clip (credit) <input id="sStreamer" class="txt" placeholder="e.g. GamerFleet"></label>
+        <label>Streamer's link <span class="muted">(optional)</span> <input id="sStreamerUrl" class="txt" placeholder="https://youtube.com/@..."></label>
+        <label>Your handle <input id="sHandle" class="txt" placeholder="@yourchannel"></label>
+        <label>Extra hashtags <input id="sTags" class="txt" placeholder="#gta6funny #hindigaming"></label>
+        <label class="check"><input type="checkbox" id="sShowHandle"> Show my handle on the video</label>
+        <label class="check"><input type="checkbox" id="sShowCredit"> Show "credit: streamer" on the video</label>
+        <h3>AI writer <span class="muted">(optional, free)</span></h3>
+        <p class="muted">Without a key, titles come from built-in templates. With a free key the AI reads what's said in
+          each clip and writes specific hooks and titles. The key stays on this PC.</p>
+        <label>Provider <select id="sProvider"></select></label>
+        <label id="sBaseWrap" class="hidden">API base URL <input id="sBase" class="txt" placeholder="https://.../v1"></label>
+        <label>API key <input id="sKey" class="txt" type="password" placeholder="paste key"></label>
+        <label>Model
+          <span class="row2"><select id="sModel"><option value="">-</option></select><button type="button" id="sLoadModels">Load</button></span>
+        </label>
+        <div class="row2"><button type="button" class="primary" id="sSave">Save</button><button type="button" id="sTest">Test AI</button></div>
+        <p class="muted" id="sMsg"></p>
+      </details>
+    </section>
+
+    <section class="card">
       <h2>Recent</h2>
       <ul id="recent" class="recent"><li class="muted">Nothing yet</li></ul>
     </section>
@@ -83,14 +113,39 @@
     <div class="status card">
       <div class="stage"></div>
       <div class="bar"><div></div></div>
+      <div class="jobctl">
+        <button type="button" class="ghost hidden" id="pauseBtn">⏸ Pause</button>
+        <button type="button" class="ghost hidden" id="stopBtn">⏹ Stop</button>
+        <button type="button" class="ghost hidden" id="restartBtn">↻ Run again</button>
+        <span class="muted small" id="ctlNote"></span>
+      </div>
       <p class="err perr"></p>
       <details class="logbox"><summary>Log</summary><pre class="log"></pre></details>
     </div>
     <div class="ready hidden">
       <div class="player card">
-        <video id="player" controls preload="metadata"></video>
+        <div class="vwrap"><video id="player" controls preload="metadata"></video><div id="faceBox" class="facebox hidden"></div><div id="drawLayer" class="drawlayer hidden"></div></div>
         <canvas id="curve" height="70" title="Hype graph - click to jump"></canvas>
         <div class="legend muted">Hype graph of the whole video &middot; highlighted = picked clips &middot; click to jump</div>
+      </div>
+      <div class="card framing">
+        <h2>Framing</h2>
+        <div class="framegrid">
+          <div>
+            <div class="row2">
+              <button type="button" id="markFace">▢ Mark facecam</button>
+              <button type="button" id="clearFace" class="ghost">Clear</button>
+            </div>
+            <p class="muted" id="faceMsg">For the split layout: pause on a frame where the streamer's camera is visible, click "Mark facecam" and drag a box over it.</p>
+            <label>Gameplay position (left ↔ right): <b id="focusVal">50</b>%
+              <input type="range" id="focusX" min="0" max="100" value="50"></label>
+            <label>Facecam size in split: <b id="splitVal">38</b>%
+              <input type="range" id="splitR" min="25" max="55" value="38"></label>
+            <button type="button" id="previewBtn">👁 Preview this frame as a reel</button>
+            <p class="muted">The preview uses the current video time and your Export settings.</p>
+          </div>
+          <div class="phone"><img id="previewImg" alt=""><span class="muted" id="previewMsg">Preview appears here</span></div>
+        </div>
       </div>
       <div class="toolbar">
         <label class="check"><input type="checkbox" id="selAll"> Select all</label>
@@ -104,21 +159,87 @@
 <template id="exportTpl">
   <div class="export card">
     <h2>Export</h2>
+    <div class="preset row2">
+      <button type="button" class="chipbtn" data-preset="viral">🔥 Viral (all effects)</button>
+      <button type="button" class="chipbtn" data-preset="clean">✨ Clean</button>
+      <button type="button" class="chipbtn" data-preset="raw">✂ Just the clip</button>
+    </div>
+    <h3>Screen</h3>
     <div class="grid">
-      <label>Layout
-        <select id="layout"><option value="blur">Blurred background</option><option value="center">Center crop (fills screen)</option></select>
+      <label>Format
+        <select id="format">
+          <option value="9:16">9:16 portrait - Shorts / Reels / TikTok</option>
+          <option value="4:5">4:5 - Instagram feed</option>
+          <option value="1:1">1:1 square</option>
+        </select>
       </label>
-      <label>Captions
+      <label>Layout <span class="muted">(can be changed per clip)</span>
+        <select id="layout">
+          <option value="split">Split: facecam top + gameplay (best for streams)</option>
+          <option value="fill">Full screen (crop to fill)</option>
+          <option value="zoom">Zoomed square + blur</option>
+          <option value="blur">Whole video + blur (old look)</option>
+        </select>
+      </label>
+    </div>
+    <h3>Hook &amp; start</h3>
+    <div class="grid">
+      <label>Hook text on screen
+        <select id="hookMode"><option value="auto">Auto (AI / templates) - edit per clip</option><option value="off">Off</option></select>
+      </label>
+      <label class="check"><input type="checkbox" id="teaser" checked> Open with the best moment (flash-forward teaser)</label>
+      <label class="check"><input type="checkbox" id="intro" checked> Zoom + flash intro</label>
+    </div>
+    <h3>Captions</h3>
+    <div class="grid">
+      <label>Style
+        <select id="capStyle">
+          <option value="yellow">Bold pop - yellow word</option>
+          <option value="green">Bold pop - green word</option>
+          <option value="clean">Clean (no animation)</option>
+        </select>
+      </label>
+      <label>Language
         <select id="captions">
-          <option value="original">Original language (word highlight)</option>
-          <option value="translated">Translated</option>
+          <option value="translated">Translated (English = straight from the speech, best)</option>
+          <option value="original">As spoken</option>
           <option value="off">Off</option>
         </select>
       </label>
       <label id="capLangWrap" class="hidden">Caption language
         <select id="capLang"></select>
       </label>
-      <label>AI dub (voice-over)
+      <label>Accuracy
+        <select id="wSize"><option value="base">Fast</option><option value="small">Better (slower, ~480 MB once)</option></select>
+      </label>
+    </div>
+    <h3>Pacing &amp; effects</h3>
+    <div class="grid">
+      <label class="check"><input type="checkbox" id="deadAir" checked> Cut dead air (jump cuts)</label>
+      <label class="check"><input type="checkbox" id="punch" checked> Zoom punches on hype moments</label>
+      <label class="check"><input type="checkbox" id="progress" checked> Progress bar</label>
+    </div>
+    <h3>Ending</h3>
+    <div class="grid">
+      <label><select id="ending">
+        <option value="cta">"Follow for more" card</option>
+        <option value="fade">Fade out</option>
+        <option value="loop">Loop-friendly (no card)</option>
+      </select></label>
+    </div>
+    <h3>Audio</h3>
+    <div class="grid">
+      <label class="check"><input type="checkbox" id="normalize" checked> Loudness to platform level (-14 LUFS)</label>
+      <label class="check"><input type="checkbox" id="whoosh" checked> Whoosh on intro / teaser</label>
+      <label>Background music <span class="muted">(put files in the <code>music</code> folder)</span>
+        <select id="music"><option value="">None</option></select>
+      </label>
+      <label id="musicVolWrap" class="hidden">Music volume: <b id="mvVal">18</b>%
+        <input id="musicVol" type="range" min="5" max="40" value="18" oninput="mvVal.textContent=this.value"></label>
+    </div>
+    <h3>AI dub</h3>
+    <div class="grid">
+      <label>Voice-over
         <select id="dubLang"><option value="">Off - keep original voice</option></select>
       </label>
       <label id="voiceWrap" class="hidden">Voice
